@@ -1,0 +1,8 @@
+query.txt
+wallet_address.txt
+proxy.txt
+build/*
+config.yml
+*.exe
+raw/
+*.json
