@@ -316,8 +316,8 @@ func (c *Client) getRefCode() {
 		if isAllowRefLink, exits := userInfo["allowRefLink"].(bool); exits && isAllowRefLink {
 			if referrals, exits := refInfo["referrals"].(map[string]interface{}); exits {
 				refCode := refInfo["code"].(string)
-				availableInvite := int(refInfo["availableToClaim"].(float64))
-				tools.Logger("info", fmt.Sprintf("| %s | Ref Code: %s | Total Ref: %d | Total Reward: %d | Available Claim: %d", c.account.username, refCode, int(referrals["total"].(float64)), int(refInfo["totalReward"].(float64)), availableInvite))
+				availableInvite := int(userInfo["availableInvites"].(float64))
+				tools.Logger("info", fmt.Sprintf("| %s | Ref Code: %s | Total Ref: %d | Total Reward: %d | Available Claim: %d | Available Invite: %d", c.account.username, refCode, int(referrals["total"].(float64)), int(refInfo["totalReward"].(float64)), int(refInfo["availableToClaim"].(float64)), availableInvite))
 
 				ref := map[string]interface{}{
 					"refCode":         refCode,
