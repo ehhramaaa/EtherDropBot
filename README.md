@@ -83,6 +83,44 @@ chmod +x EtherDrop
 ./EtherDrop
 ```
 
+**If You Want Auto Select Choice In Terminal or Apps**
+
+For Option 1
+
+```shell
+go run . -action 1
+```
+
+**If Already Build To Apps**
+
+```shell
+./EtherDrop -action 1
+```
+
+For Option 2
+
+```shell
+go run . -action 2
+```
+
+**If Already Build To Apps**
+
+```shell
+./EtherDrop -action 2
+```
+
+For Option 3
+
+```shell
+go run . -action 3
+```
+
+**If Already Build To Apps**
+
+```shell
+./EtherDrop -action 3
+```
+
 ## Mobile Guide
 
 ### Prerequisites 📚
@@ -101,20 +139,6 @@ cd EtherDrop
 go mod tidy
 ```
 
-### Usage
+> For Usage and build application it's same like linux
 
-```shell
-cd EtherDrop
-go run .
-```
-
-## Or you can do build application by typing:
-
-```shell
-cd EtherDrop
-go build -o EtherDrop
-chmod +x EtherDrop
-./EtherDrop
-```
-
-# Feel Free To Ask Any Question Join : [Skibidi Sigma Code Group](https://t.me/skibidi_sigma_chat)
+> # Feel Free To Ask Any Question Join : [Skibidi Sigma Code Group](https://t.me/skibidi_sigma_chat)
