@@ -1,6 +1,6 @@
 [![Static Badge](https://img.shields.io/badge/Telegram-Bot%20Link-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/fomo/app?startapp=ref_JDLG5)
 [![Static Badge](https://img.shields.io/badge/Telegram-Channel%20Link-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/skibidi_sigma_code)
-[![Static Badge](https://img.shields.io/badge/Telegram-Chat%20Link-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/skibidi_sigma_chat)
+[![Static Badge](https://img.shields.io/badge/Telegram-Chat%20Link-Link?style=for-the-badge&logo=Telegram&logoColor=white&logoSize=auto&color=blue)](https://t.me/skibidi_sigma_code_chat)
 
 ![demo](https://raw.githubusercontent.com/ehhramaaa/EtherDrop/main/demo/demo.png)
 
@@ -126,7 +126,8 @@ go run . -action 3
 ### Prerequisites 📚
 
 > Download Termux, ISH Shell Or Another Terminal With Linux Base
-> Make Sure Golang Version >= 1.23
+
+> **Make Sure Golang Version >= 1.23**
 
 ### Installation
 
@@ -141,4 +142,4 @@ go mod tidy
 
 > For Usage and build application it's same like linux
 
-> # Feel Free To Ask Any Question Join : [Skibidi Sigma Code Group](https://t.me/skibidi_sigma_chat)
+> # Feel Free To Ask Any Question Join : [Skibidi Sigma Code Group](https://t.me/skibidi_sigma_code_chat)
