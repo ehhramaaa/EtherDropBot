@@ -3,6 +3,8 @@ package core
 import (
 	"net"
 	"net/http"
+
+	"github.com/go-rod/rod"
 )
 
 type Client struct {
@@ -10,6 +12,7 @@ type Client struct {
 	proxy       string
 	accessToken string
 	httpClient  *http.Client
+	browser     *rod.Browser
 }
 
 type Dialer interface {
@@ -17,6 +20,7 @@ type Dialer interface {
 }
 
 type Account struct {
+	phone          string
 	queryId        string
 	userId         int
 	username       string

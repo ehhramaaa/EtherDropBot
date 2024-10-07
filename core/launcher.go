@@ -3,84 +3,36 @@ package core
 import (
 	"EtherDrop/tools"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gookit/config/v2"
 )
 
-func (account *Account) worker(wg *sync.WaitGroup, semaphore *chan struct{}, totalPointsChan *chan int, index int, query string, proxyList []string, selectedTools int, refCode string) {
-	defer wg.Done()
-	*semaphore <- struct{}{}
-
-	var points int
-	var proxy string
-
-	if len(proxyList) > 0 {
-		proxy = proxyList[index%len(proxyList)]
-	}
-
-	tools.Logger("info", fmt.Sprintf("| %s | Starting Bot...", account.username))
-
-	setDns(&net.Dialer{})
-
-	client := Client{
-		account: *account,
-		proxy:   proxy,
-		httpClient: &http.Client{
-			Timeout: 15 * time.Second,
-		},
-	}
-
-	if len(client.proxy) > 0 {
-		err := client.setProxy()
-		if err != nil {
-			tools.Logger("error", fmt.Sprintf("| %s | Failed to set proxy: %v", account.username, err))
-		} else {
-			tools.Logger("success", fmt.Sprintf("| %s | Proxy Successfully Set...", account.username))
-		}
-	}
-
-	infoIp, err := client.checkIp()
-	if err != nil {
-		tools.Logger("error", fmt.Sprintf("Failed to check ip: %v", err))
-	}
-
-	if infoIp != nil {
-		tools.Logger("success", fmt.Sprintf("| %s | Ip: %s | City: %s | Country: %s | Provider: %s", account.username, infoIp["ip"].(string), infoIp["city"].(string), infoIp["country"].(string), infoIp["org"].(string)))
-	}
-
-	switch selectedTools {
-	case 1:
-		points = client.autoFarming()
-	case 2:
-		client.getRefCode()
-	case 3:
-		client.autoRegisterWithRef(refCode)
-	}
-
-	*totalPointsChan <- points
-
-	<-*semaphore
-}
-
 func LaunchBot(selectedTools int) {
-	queryPath := "configs/query.txt"
+	sessionsPath := "sessions"
 	proxyPath := "configs/proxy.txt"
 	maxThread := config.Int("MAX_THREAD")
 	isUseProxy := config.Bool("USE_PROXY")
 
-	queryData, err := tools.ReadFileTxt(queryPath)
+	if !tools.CheckFileOrFolderExits(sessionsPath) {
+		os.MkdirAll(sessionsPath, os.ModeDir)
+	}
+
+	sessionList, err := tools.ReadFileInDir(sessionsPath)
 	if err != nil {
-		tools.Logger("error", fmt.Sprintf("Query Data Not Found: %s", err))
+		tools.Logger("error", fmt.Sprintf("Failed To Read File Directory: %v", err))
+	}
+
+	if len(sessionList) <= 0 {
+		tools.Logger("error", "No Session Found")
 		return
 	}
 
-	tools.Logger("info", fmt.Sprintf("%v Query Data Detected", len(queryData)))
+	tools.Logger("info", fmt.Sprintf("%v Session Detected", len(sessionList)))
 
 	var wg sync.WaitGroup
 	var semaphore chan struct{}
@@ -95,10 +47,8 @@ func LaunchBot(selectedTools int) {
 		tools.Logger("info", fmt.Sprintf("%v Proxy Detected", len(proxyList)))
 	}
 
-	totalPointsChan := make(chan int, len(queryData))
-
-	if maxThread > len(queryData) {
-		semaphore = make(chan struct{}, len(queryData))
+	if maxThread > len(sessionList) {
+		semaphore = make(chan struct{}, len(sessionList))
 	} else {
 		semaphore = make(chan struct{}, maxThread)
 	}
@@ -106,18 +56,20 @@ func LaunchBot(selectedTools int) {
 	switch selectedTools {
 	case 1:
 		for {
-			for index, query := range queryData {
+			totalPointsChan := make(chan int, len(sessionList))
+			for index, session := range sessionList {
 				wg.Add(1)
 				account := &Account{
-					queryData: query,
+					phone: strings.TrimSuffix(session.Name(), ".json"),
 				}
 
-				account.parsingQueryData()
-
-				go account.worker(&wg, &semaphore, &totalPointsChan, index, query, proxyList, selectedTools, "")
+				go account.worker(&wg, &semaphore, &totalPointsChan, index, session, proxyList, selectedTools, "")
 			}
-			wg.Wait()
-			close(totalPointsChan)
+
+			go func() {
+				wg.Wait()
+				close(totalPointsChan)
+			}()
 
 			var totalPoints int
 
@@ -139,36 +91,32 @@ func LaunchBot(selectedTools int) {
 			tools.Logger("info", fmt.Sprintf("Rename ref_code.json to ref_code_old.json"))
 		}
 
-		for index, query := range queryData {
+		for index, session := range sessionList {
 			wg.Add(1)
 			account := &Account{
-				queryData: query,
+				phone: strings.TrimSuffix(session.Name(), ".json"),
 			}
 
-			account.parsingQueryData()
-
-			go account.worker(&wg, &semaphore, &totalPointsChan, index, query, proxyList, selectedTools, "")
+			go account.worker(&wg, &semaphore, nil, index, session, proxyList, selectedTools, "")
 		}
 		wg.Wait()
 	case 3:
 		refCode := tools.InputTerminal("Input Your Ref Code: ")
 		countAccount, _ := strconv.Atoi(tools.InputTerminal(fmt.Sprintf("How Much Account You Want To Register With Ref Code %s: ", refCode)))
 
-		for index, query := range queryData {
+		for index, session := range sessionList {
+			wg.Add(1)
 
 			if index != 0 && index%countAccount == 0 {
 				refCode = tools.InputTerminal("Input Another Ref Code: ")
 				countAccount, _ = strconv.Atoi(tools.InputTerminal(fmt.Sprintf("How Much Account You Want To Register With Ref Code %s: ", refCode)))
 			}
 
-			wg.Add(1)
 			account := &Account{
-				queryData: query,
+				phone: strings.TrimSuffix(session.Name(), ".json"),
 			}
 
-			account.parsingQueryData()
-
-			go account.worker(&wg, &semaphore, &totalPointsChan, index, query, proxyList, selectedTools, refCode)
+			go account.worker(&wg, &semaphore, nil, index, session, proxyList, selectedTools, "")
 		}
 		wg.Wait()
 	}

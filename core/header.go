@@ -14,8 +14,8 @@ func (c *Client) setHeader(http *http.Request) {
 	}
 
 	header := map[string]string{
-		"accept":             "application/json, text/plain, */*",
-		"accept-language":    "en-US,en;q=0.9,id;q=0.8",
+		"accept":             "application/json",
+		"accept-language":    "en-US,en;q=0.9",
 		"content-type":       "application/json",
 		"priority":           "u=1, i",
 		"sec-ch-ua":          `"Android WebView";v="125", "Chromium";v="125", "Not.A/Brand";v="24"`,
@@ -23,7 +23,7 @@ func (c *Client) setHeader(http *http.Request) {
 		"sec-fetch-dest":     "empty",
 		"sec-fetch-mode":     "cors",
 		"sec-fetch-site":     "same-site",
-		"Referer":            "https://bot.capybarameme.com/",
+		"Referer":            "https://mdkefjwsfepf.dropstab.com/",
 		"Referrer-Policy":    "strict-origin-when-cross-origin",
 		"User-Agent":         userAgent,
 	}

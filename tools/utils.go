@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"math/rand"
 	"os"
 	"strings"
@@ -93,4 +94,30 @@ func AppendFileToJson(filePath string, newData interface{}) error {
 	}
 
 	return nil
+}
+
+func ReadFileInDir(path string) ([]fs.DirEntry, error) {
+	files, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+
+	return files, nil
+}
+
+func GetTextAfterKey(urlData, key string) (string, error) {
+	// Temukan lokasi key
+	keyIndex := strings.Index(urlData, key)
+	if keyIndex == -1 {
+		return "", fmt.Errorf("key %s tidak ditemukan", key)
+	}
+
+	// Ambil substring setelah key
+	startIndex := keyIndex + len(key)
+	endIndex := strings.Index(urlData[startIndex:], "&")
+	if endIndex == -1 {
+		return urlData[startIndex:], nil
+	}
+
+	return urlData[startIndex : startIndex+endIndex], nil
 }

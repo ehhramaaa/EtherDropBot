@@ -2,10 +2,20 @@ package core
 
 import (
 	"EtherDrop/tools"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
+	"net"
+	"net/http"
 	"net/url"
+	"path/filepath"
+	"strings"
+	"sync"
 	"time"
+
+	"github.com/go-rod/rod"
+	"github.com/go-rod/rod/lib/proto"
 )
 
 func (account *Account) parsingQueryData() {
@@ -80,6 +90,270 @@ func (account *Account) parsingQueryData() {
 	account.allowWriteToPm = allowWriteToPm
 }
 
+func (account *Account) worker(wg *sync.WaitGroup, semaphore *chan struct{}, totalPointsChan *chan int, index int, session fs.DirEntry, proxyList []string, selectedTools int, refCode string) {
+	defer wg.Done()
+	*semaphore <- struct{}{}
+
+	var points int
+	var proxy string
+
+	tools.Logger("info", fmt.Sprintf("| %s | Starting Bot...", account.phone))
+
+	setDns(&net.Dialer{})
+
+	client := Client{
+		account: *account,
+	}
+
+	var queryData string
+	resultChan := make(chan string, 1)
+	errChan := make(chan error, 1)
+
+	var querySuccess bool
+
+	for i := 0; i < 3; i++ {
+		browser := initializeBrowser()
+
+		defer browser.MustClose()
+
+		client.browser = browser
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		go func(ctx context.Context) {
+			defer func() {
+				if r := recover(); r != nil {
+					tools.Logger("error", fmt.Sprintf("| %s | Panic recovered while getting query data: %v", account.phone, r))
+					errChan <- fmt.Errorf("panic: %v", r)
+				}
+			}()
+
+			select {
+			case <-ctx.Done():
+				tools.Logger("warning", fmt.Sprintf("| %s | Context cancelled, stopping query attempt.", account.phone))
+				return
+			default:
+				query, err := client.getQueryData(session)
+				if err != nil {
+					errChan <- err
+					return
+				}
+				resultChan <- query
+			}
+		}(ctx)
+
+		select {
+		case <-ctx.Done():
+			tools.Logger("error", fmt.Sprintf("| %s | Timeout during getQueryData | Try to get query data again...", account.phone))
+			browser.MustClose()
+
+			time.Sleep(3 * time.Second)
+
+			continue
+
+		case result := <-resultChan:
+			if result != "" {
+				queryData = result
+				querySuccess = true
+			} else {
+				continue
+			}
+
+		case err := <-errChan:
+			tools.Logger("error", fmt.Sprintf("| %s | Error while getting query data: %v", account.phone, err))
+			browser.MustClose()
+
+			time.Sleep(3 * time.Second)
+
+			continue
+		}
+
+		if querySuccess {
+			tools.Logger("info", fmt.Sprintf("| %s | Get Query Data Successfully...", account.phone))
+			break
+		}
+
+		if i == 2 {
+			tools.Logger("error", fmt.Sprintf("| %s | Failed get query data after 3 attempts!", account.phone))
+			break
+		}
+	}
+
+	if queryData != "" {
+		account.queryData = queryData
+	} else {
+		return
+	}
+
+	account.parsingQueryData()
+
+	if len(proxyList) > 0 {
+		proxy = proxyList[index%len(proxyList)]
+	}
+
+	client.account = *account
+	client.proxy = proxy
+	client.httpClient = &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	if len(client.proxy) > 0 {
+		err := client.setProxy()
+		if err != nil {
+			tools.Logger("error", fmt.Sprintf("| %s | Failed to set proxy: %v", account.username, err))
+		} else {
+			tools.Logger("success", fmt.Sprintf("| %s | Proxy Successfully Set...", account.username))
+		}
+	}
+
+	infoIp, err := client.checkIp()
+	if err != nil {
+		tools.Logger("error", fmt.Sprintf("Failed to check ip: %v", err))
+	}
+
+	if infoIp != nil {
+		tools.Logger("success", fmt.Sprintf("| %s | Ip: %s | City: %s | Country: %s | Provider: %s", account.username, infoIp["ip"].(string), infoIp["city"].(string), infoIp["country"].(string), infoIp["org"].(string)))
+	}
+
+	switch selectedTools {
+	case 1:
+		points = client.autoFarming()
+		*totalPointsChan <- points
+	case 2:
+		client.getRefCode()
+	case 3:
+		client.autoRegisterWithRef(refCode)
+	}
+
+	<-*semaphore
+}
+
+func (c *Client) getQueryData(session fs.DirEntry) (string, error) {
+	defer c.browser.MustClose()
+
+	// Set Local Storage
+	sessionsPath := "sessions"
+
+	page := c.browser.MustPage()
+
+	account, err := tools.ReadFileJson(filepath.Join(sessionsPath, session.Name()))
+	if err != nil {
+		tools.Logger("error", fmt.Sprintf("| %s | Failed to read file %s: %v", c.account.phone, session.Name(), err))
+	}
+
+	// Membuka halaman kosong terlebih dahulu
+	c.navigate(page, "https://web.telegram.org/k/")
+
+	page.MustWaitLoad()
+	page.MustWaitNavigation()
+
+	time.Sleep(2 * time.Second)
+
+	// Evaluasi JavaScript untuk menyimpan data ke localStorage
+	switch v := account.(type) {
+	case []map[string]interface{}:
+		// Jika data adalah array of maps
+		for _, acc := range v {
+			for key, value := range acc {
+				page.Eval(fmt.Sprintf(`localStorage.setItem('%s', '%s');`, key, value))
+			}
+		}
+	case map[string]interface{}:
+		// Jika data adalah single map
+		for key, value := range v {
+			page.Eval(fmt.Sprintf(`localStorage.setItem('%s', '%s');`, key, value))
+		}
+	default:
+		tools.Logger("error", fmt.Sprintf("| %s | Failed to Evaluate Local Storage: Unknown Data Type", c.account.phone))
+	}
+
+	tools.Logger("success", fmt.Sprintf("| %s | Local storage successfully set | Check Login Status...", c.account.phone))
+
+	page.MustReload()
+	page.MustWaitLoad()
+	page.MustWaitNavigation()
+
+	time.Sleep(5 * time.Second)
+
+	isSessionExpired := c.checkElement(page, "#auth-pages > div > div.tabs-container.auth-pages__container > div.tabs-tab.page-signQR.active > div > div.input-wrapper > button")
+
+	if isSessionExpired {
+		tools.Logger("error", fmt.Sprintf("| %s | Session Expired Or Account Banned, Please Check Your Account...", c.account.phone))
+
+		return "", fmt.Errorf("session expired or account banned")
+	}
+
+	tools.Logger("success", fmt.Sprintf("| %s | Login successfully | Sleep 3s Before Navigate...", c.account.phone))
+
+	time.Sleep(3 * time.Second)
+
+	tools.Logger("info", fmt.Sprintf("| %s | Navigating Telegram...", c.account.phone))
+
+	// Search Bot
+	c.searchBot(page, "fomo")
+
+	time.Sleep(2 * time.Second)
+
+	// Click Launch App
+	c.clickElement(page, "div.new-message-bot-commands")
+
+	c.popupLaunchBot(page)
+
+	time.Sleep(2 * time.Second)
+
+	isIframe := c.checkElement(page, ".payment-verification")
+
+	if !isIframe {
+		return "", fmt.Errorf("Failed To Launch Bot: Iframe Not Detected")
+	}
+
+	iframe := page.MustElement(".payment-verification")
+
+	iframePage := iframe.MustFrame()
+
+	tools.Logger("info", fmt.Sprintf("| %s | Process Get Query Data...", c.account.phone))
+
+	res, err := iframePage.Evaluate(rod.Eval(`() => {
+			let initParams = sessionStorage.getItem("__telegram__initParams");
+			if (initParams) {
+				let parsedParams = JSON.parse(initParams);
+				return parsedParams.tgWebAppData;
+			}
+		
+			initParams = sessionStorage.getItem("telegram-apps/launch-params");
+			if (initParams) {
+				let parsedParams = JSON.parse(initParams);
+				return parsedParams;
+			}
+		
+			return null;
+		}`))
+
+	if err != nil {
+		return "", err
+	}
+
+	var queryData string
+
+	if strings.Contains(res.Value.String(), "tgWebAppData=") {
+		queryParamsString, err := tools.GetTextAfterKey(res.Value.String(), "tgWebAppData=")
+		if err != nil {
+			return "", err
+		}
+
+		queryData = queryParamsString
+	} else {
+		if res.Type == proto.RuntimeRemoteObjectTypeString {
+			queryData = res.Value.String()
+		} else {
+			return "", fmt.Errorf("Get Query Data Failed...")
+		}
+	}
+
+	return queryData, nil
+}
+
 func (c *Client) autoFarming() int {
 	defer tools.RecoverPanic()
 
@@ -106,9 +380,9 @@ func (c *Client) autoFarming() int {
 	}
 
 	if userInfo != nil {
-		tools.Logger("info", fmt.Sprintf("| %s | Balance: %d | Available Invite: %d | Welcome Bonus Claimed: %v | Allow Ref: %v", c.account.username, int(userInfo["balance"].(float64)), int(userInfo["availableInvites"].(float64)), userInfo["welcomeBonusReceived"].(bool), userInfo["allowRefLink"].(bool)))
+		tools.Logger("info", fmt.Sprintf("| %s | ID: %d |  Balance: %d | Welcome Bonus Claimed: %v", c.account.username, int(userInfo["id"].(float64)), int(userInfo["balance"].(float64)), userInfo["welcomeBonusReceived"].(bool)))
 
-		if userInfo["usedRefLink"].(bool) {
+		if len(userInfo["usedRefLinkCode"].(string)) > 0 {
 			isAlreadyUseRef = true
 		}
 
@@ -379,7 +653,7 @@ func (c *Client) autoRegisterWithRef(refCode string) {
 	if userInfo != nil {
 		tools.Logger("info", fmt.Sprintf("| %s | Balance: %d | Available Invite: %d | Welcome Bonus Claimed: %v | Allow Ref: %v", c.account.username, int(userInfo["balance"].(float64)), int(userInfo["availableInvites"].(float64)), userInfo["welcomeBonusReceived"].(bool), userInfo["allowRefLink"].(bool)))
 
-		if userInfo["usedRefLink"].(bool) {
+		if userInfo["usedRefLinkCode"].(bool) {
 			isAlreadyUseRef = true
 		}
 

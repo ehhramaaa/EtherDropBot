@@ -6,3 +6,4 @@ config.yml
 *.exe
 raw/
 *.json
+sessions

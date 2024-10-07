@@ -10,15 +10,20 @@
 
 **Go Version Tested 1.23.1**
 
+# 🔥🔥 UPDATED 🔥🔥
+
+**Using Session Storage Of Telegram Web Because Query Data Can Expired**
+
 ## Prerequisites 📚
 
 Before you begin, make sure you have the following installed:
 
 - [Golang](https://go.dev/doc/install) Must >= 1.23.
 - #### Rename config.yml.example to config.yml.
-- #### Rename query.txt.example to query.txt and place your query data.
+- #### Place your browser session local storage .json file in the sessions folder.
+- #### If you don’t have a local storage session, you can obtain it from [Telegram Web Tools](https://github.com/ehhramaaa/telegram-web-tools)
+- #### If you want to use a custom browser, set the browser path in config.yml.
 - #### Rename proxy.txt.example to proxy.txt and place your query data.
-- #### If you don’t have a query data, you can obtain it from [Telegram Web Tools](https://github.com/ehhramaaa/telegram-web-tools)
 - #### It is recommended to use an IP info token to improve request efficiency when checking IPs.
 - #### Auto Get Ref Code Will Generate File ref_code.json in main folder.
 - #### Auto Register With Ref Code Required Input Your Ref Code.
@@ -33,7 +38,7 @@ Before you begin, make sure you have the following installed:
 |       Auto Claim Task       |    ✅     |
 |    Auto Claim Ref Reward    |    ✅     |
 |      Proxy SOCKS5/HTTP      |    ✅     |
-|       Use Query Data        |    ✅     |
+|     Use Session Storage     |    ✅     |
 |       Multithreading        |    ✅     |
 |      Random User Agent      |    ✅     |
 
