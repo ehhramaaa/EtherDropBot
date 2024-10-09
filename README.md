@@ -138,7 +138,7 @@ go run . -action 3
 
 ```shell
 apt update && apt upgrade -y
-apt instal golang -y
+apt instal golang chromium -y
 go version -v
 git clone https://github.com/ehhramaaa/EtherDrop.git
 cd EtherDrop
